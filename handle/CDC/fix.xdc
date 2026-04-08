@@ -1,0 +1,6 @@
+set_false_path -from [get_ports rst_in]
+set_false_path -from [get_ports start]
+set_false_path -from [get_ports {algo_sel[*]}]
+set_false_path -from [get_ports {server_en[*]}]
+set_false_path -from [get_ports clk_p]
+set_false_path -from [get_ports clk_n]
