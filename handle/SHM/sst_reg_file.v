@@ -47,7 +47,8 @@ module sst_reg_file #(
             for (i = 0; i < NUM_SERVERS; i = i + 1) begin
                 ip_ram[i]     <= 32'h0A000064 + i;  // 10.0.0.100 + i
                 health_ram[i] <= 1'b1;
-                scn_ram[i]    <= {SCN_WIDTH{1'b0}};
+//                scn_ram[i]    <= {SCN_WIDTH{1'b0}};
+                scn_ram[i]    <= {SCN_WIDTH{1'b0}}+ i*10;
             end
         end 
         else begin

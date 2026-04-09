@@ -10,7 +10,7 @@ module fpga_top#(
     input  wire        clk_n,    
     input  wire        rst_in,     // N?t nh?n GPIO_SW_N (Active High)
     (* mark_debug = "true" *) input  wire        start,      // Asynchronous Input
-    (* mark_debug = "true" *) input  wire [2:0]  algo_sel,
+    (* mark_debug = "true" *) input  wire [1:0]  algo_sel,
 //    input  wire        loop_en,
     output wire        done       // flag done read pcap
 );
@@ -57,7 +57,7 @@ module fpga_top#(
     
     // connect from CSLB to shm 
     wire                        scn_inc_en;  //scn increament from cslb to stt controller to update status server
-    wire  [1:0]                 server_idx;  // idx comes with scn increment
+    wire  [$clog2(NUM_SERVERS)-1:0]                 server_idx;  // idx comes with scn increment
     wire                        ready_shm2cslb;
     wire                        cslb_rd_en;  // tin hieu tu cslb yeu cau gui danh sach dia chi ip va trang thai ket noi cua server 
     
@@ -67,7 +67,7 @@ module fpga_top#(
      
     wire  [NUM_SERVERS-1:0]     health_bitmap;
     wire                        scn_dec_en;
-    wire  [1:0]                 scn_dec_idx; 
+    wire  [$clog2(NUM_SERVERS)-1:0]                 scn_dec_idx; 
     
     // input from backend to cslb 
     wire [511:0]  rx_backend_data;
@@ -165,7 +165,8 @@ module fpga_top#(
         .protocol    (key_protocol)
     );
     load_balancer_top #(
-        .NUM_SERVERS (NUM_SERVERS)
+        .NUM_SERVERS (NUM_SERVERS),
+        .SCN_WIDTH(SCN_WIDTH)
     ) u_core (
         .clk            (clk_core), // S?A: clk -> clk_core
         .rst_n          (rst_n),

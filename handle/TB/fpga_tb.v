@@ -14,7 +14,7 @@ module tb_fpga_top;
     reg clk_n;
     reg rst_in;
     reg start;
-    reg [2:0] algo_sel;
+    reg [1:0] algo_sel;
     wire    done;
 
     /* ---------------- DUT ---------------- */
@@ -121,7 +121,7 @@ module tb_fpga_top;
     initial begin
         rst_in   = 1'b1;   // Active High
         start   = 1'b0;
-        algo_sel = 3'b100;   // Consistent Hash
+        algo_sel = 2'b10;   // Consistent Hash
 //        tx_backend_ready = 1'b1;
 //        rx_backend_valid = 1'b0;
 //        rx_backend_last  = 1'b0;

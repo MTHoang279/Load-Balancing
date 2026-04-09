@@ -3,9 +3,8 @@
 module net2axis_master #(
     // �?ư�?ng dẫn file .mem (đã convert bằng Python)
     parameter INPUTFILE   = "E:/10G_Ethernet/UDP_sample_10K.mem",
-    parameter ROM_DEPTH   = 1670,
-    //ok      
-//     parameter ROM_DEPTH   = 65536,             
+    parameter ROM_DEPTH   = 1670,     
+//    parameter ROM_DEPTH   = 65536,             
     parameter TDATA_WIDTH = 512
 )(
     input  wire                   ACLK,

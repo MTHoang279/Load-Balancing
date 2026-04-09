@@ -169,7 +169,7 @@
 `timescale 1ns / 1ps
 
 module net2axis_master #(
-    parameter INPUTFILE   = "F:/App/UDP_sample_10K.mem",
+    parameter INPUTFILE   = "E:/10G_Ethernet/UDP_sample_10K.mem",
     parameter ROM_DEPTH   = 1097,
     //ok      
     // parameter ROM_DEPTH   = 65536,             

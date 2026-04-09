@@ -40,18 +40,11 @@ module sst_reg_file #(
 
     always @(posedge clk) begin
         if (!rst_n) begin
-            ip_ram[0]     <= 32'h0A000064;
-            ip_ram[1]     <= 32'h0A000065;
-            ip_ram[2]     <= 32'h0A000066;
-            ip_ram[3]     <= 32'h0A000067;
-            health_ram[0] <= 1'b1;
-            health_ram[1] <= 1'b1;
-            health_ram[2] <= 1'b1;
-            health_ram[3] <= 1'b1;
-            scn_ram[0]    <= {SCN_WIDTH{1'b0}};
-            scn_ram[1]    <= {SCN_WIDTH{1'b0}};
-            scn_ram[2]    <= {SCN_WIDTH{1'b0}};
-            scn_ram[3]    <= {SCN_WIDTH{1'b0}};
+            for (i = 0; i < NUM_SERVERS; i = i + 1) begin
+                ip_ram[i]     <= 32'h0A000064 + i;  // 10.0.0.100 + i
+                health_ram[i] <= 1'b1;
+                scn_ram[i]    <= {SCN_WIDTH{1'b0}} + i*10;
+            end
         end else if (wr_en) begin
             ip_ram[wr_addr]     <= wr_ip;
             health_ram[wr_addr] <= wr_health;

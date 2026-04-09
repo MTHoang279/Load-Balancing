@@ -31,12 +31,12 @@ module load_balancer_top #(
     input  wire                          m_axis_tready,
 
     //================ Config ============================
-    input  wire [2:0]            cfg_algo_sel,
+    input  wire [1:0]            cfg_algo_sel,
     output                       scn_inc_en,
-    output wire [1:0]            scn_server_idx,
+    output wire [$clog2(NUM_SERVERS)-1:0]            scn_server_idx,
     input  wire [NUM_SERVERS-1:0]health_bitmap,
     input  wire                   scn_dec_en,
-    input  wire [1:0]            scn_dec_idx,
+    input  wire [$clog2(NUM_SERVERS)-1:0]            scn_dec_idx,
     
     output wire                  cslb_rd_en,
     input  wire [NUM_SERVERS*IP_WIDTH-1:0]  cslb_rd_ip,
@@ -118,7 +118,8 @@ module load_balancer_top #(
     // 3. ALGORITHM SELECTOR
     //============================================================
     algorithm_selector #(
-        .NUM_SERVERS(NUM_SERVERS)
+        .NUM_SERVERS(NUM_SERVERS),
+        .SCN_WIDTH(SCN_WIDTH)
     ) u_algo_sel (
         .clock        (clk),
         .rst_n        (rst_n), // Module này dùng rst_n
