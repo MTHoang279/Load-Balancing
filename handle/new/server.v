@@ -53,6 +53,7 @@ module server #(
     parameter [31:0] MY_IP = 32'h0A000064
 )(
     input  wire clk, rst_n,
+    input  wire server_en,  // Server alive/enable signal
     input  wire rx_user_valid, rx_user_last,
     input  wire [511:0] rx_user_data,
     input  wire [63:0]  rx_user_keep,
@@ -71,18 +72,22 @@ module server #(
 
     // --- 1. Latch lo?i g?i tin t?i SOP ---
     reg sop_in;
+    // Allow consuming packets when server is alive (process) OR dead (discard)
     wire fire_in = rx_user_valid && rx_user_ready;
+    // Only process packets when server is alive
+    wire fire_in_process = fire_in && server_en;
     
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) sop_in <= 1'b1;
-        else if (fire_in) sop_in <= rx_user_last;
+        // Only update SOP when actually processing (not during discard)
+        else if (fire_in_process) sop_in <= rx_user_last;
     end
 
     reg is_hb_type;
     wire hb_match_now = (rx_user_data[223:208] == 16'd8888) && (rx_user_data[239:224] == 16'd9999);
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) is_hb_type <= 1'b0;
-        else if (fire_in && sop_in) 
+        else if (fire_in_process && sop_in) 
         is_hb_type <= hb_match_now;
     end
 
@@ -92,7 +97,8 @@ module server #(
     reg [63:0]  keep_r;
 
     wire fire_out = valid_r && tx_user_ready;
-    assign rx_user_ready = !valid_r || fire_out;
+    // Ready signal: Always ready in discard mode (server dead), or ready when enabled and pipeline free
+    assign rx_user_ready = !server_en ? 1'b1 : (!valid_r || fire_out);
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -100,7 +106,14 @@ module server #(
             is_hb_r <= 0;
             last_r  <= 0;
         end else begin
-            if (fire_in) begin
+            // When server dies (server_en == 0), clear pipeline and enter discard mode
+            if (!server_en) begin
+                valid_r <= 1'b0;
+                is_hb_r <= 1'b0;
+                last_r  <= 1'b0;
+            end
+            // Only latch data when server is alive and consuming packets
+            else if (fire_in_process) begin
                 valid_r <= 1'b1;
                 data_r  <= rx_user_data;
                 keep_r  <= rx_user_keep;
@@ -121,18 +134,20 @@ module server #(
     wire [31:0] src_ip = data_r[303:272];
     wire [511:0] hb_reply_data = {144'b0, 32'd0 | SERVER_ID, 32'b0, 64'b0, 8'h02, 32'b0, 16'd9999, 16'd8888, src_ip, MY_IP, 240'b0};
 
-    assign tx_user_valid = valid_r;
+    // Only output when server is enabled
+    assign tx_user_valid = server_en && valid_r;
     // last_r ch? c? ? ngh?a khi valid_r ?ang l?n
-    assign tx_user_last  = valid_r && (is_hb_r ? 1'b1 : last_r); 
+    assign tx_user_last  = (server_en && valid_r) && (is_hb_r ? 1'b1 : last_r); 
     assign tx_user_data  = is_hb_r ? hb_reply_data : data_r;
     assign tx_user_keep  = is_hb_r ? 64'hFFFFFFFFFFFFFFFF : keep_r;
 
     // --- 4. Counter Logic (Ch?nh x?c t?ng xung) ---
+    // Only count packets when server is alive (not during discard mode)
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             cnt_user_req_rx <= 0;
             cnt_hb_req_rx   <= 0;
-        end else if (fire_in && rx_user_last) begin
+        end else if (fire_in_process && rx_user_last) begin
             if (sop_in ? hb_match_now : is_hb_type)
                 cnt_hb_req_rx <= cnt_hb_req_rx + 1;
             else
@@ -159,6 +174,7 @@ module master_server #(
     parameter SERVER_ID_WIDTH = $clog2(NUM_SERVERS)
 )(
     input wire clk, rst_n,
+    input wire [NUM_SERVERS-1:0] server_en,  // Server alive/enable signal
     input wire rx_user_valid, rx_user_last,
     input wire [511:0] rx_user_data,
     input wire [63:0] rx_user_keep,
@@ -278,6 +294,7 @@ module master_server #(
                 .MY_IP(32'h0a000064 + i)
             ) u_inst (
                 .clk(clk), .rst_n(rst_n),
+                .server_en(server_en[i]),  // Pass individual server_en bit
 
                 .rx_user_valid(s_valid[i]),
                 .rx_user_data(s_data[i]),

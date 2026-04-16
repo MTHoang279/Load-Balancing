@@ -11,6 +11,7 @@ module fpga_top#(
     input  wire        rst_in,     // N?t nh?n GPIO_SW_N (Active High)
     (* mark_debug = "true" *) input  wire        start,      // Asynchronous Input
     (* mark_debug = "true" *) input  wire [1:0]  algo_sel,
+    (* mark_debug = "true" *) input  wire [NUM_SERVERS-1:0] server_en,  // Server enable/alive signal
 //    input  wire        loop_en,
     output wire        done       // flag done read pcap
 );
@@ -65,7 +66,8 @@ module fpga_top#(
     wire  [NUM_SERVERS*SCN_WIDTH-1:0] cslb_rd_scn;
     wire                        cslb_rd_valid;
      
-    wire  [NUM_SERVERS-1:0]     health_bitmap;
+    wire  [NUM_SERVERS-1:0]     health_bitmap_shm;     // SHM health status output
+    wire                        health_update_valid;   // Valid signal for health_bitmap update
     wire                        scn_dec_en;
     wire  [$clog2(NUM_SERVERS)-1:0]                 scn_dec_idx; 
     
@@ -195,7 +197,8 @@ module fpga_top#(
 //        .cfg_ip_list    ({32'hc0a8010a, 32'hc0a8010b, 32'hc0a8010c, 32'hc0a8010d}),
         .scn_inc_en     (scn_inc_en),
         .scn_server_idx (server_idx),
-        .health_bitmap({NUM_SERVERS{1'b1}}),
+        .health_bitmap(health_bitmap_shm),  // Use health_bitmap from SHM
+        .health_bitmap_update_valid(health_update_valid),  // Health status update valid signal
         .scn_dec_en(scn_dec_en),
         .scn_dec_idx(scn_dec_idx),
         
@@ -261,36 +264,13 @@ module fpga_top#(
     .cslb_rd_scn(cslb_rd_scn),
     .cslb_rd_valid(cslb_rd_valid),
     
-    .cslb_health_bitmap(),
-    .cslb_health_update_valid(),
+    .cslb_health_bitmap(health_bitmap_shm),  // SHM health status to CSLB
+    .cslb_health_update_valid(health_update_valid),  // Health update valid signal to CSLB
     
     .cslb_scn_dec_en(scn_dec_en),
     .cslb_server_dec_idx(scn_dec_idx)
 );
 
-//server_auto_responder #(
-//    .N_SERVERS(NUM_SERVERS)
-//)
-//    u_server(
-//    .clk(clk_core),
-//    .rst_n(rst_n),
-//    .server_en(4'b1111),
-
-//    // ================= INPUT: t? SHM =================
-//    .rx_tdata(tx_backend_data),
-//    .rx_tkeep(tx_backend_keep),
-//    .rx_tvalid(tx_backend_valid),
-//    .rx_tlast(tx_backend_last),
-//    .rx_tready(tx_backend_ready),
-
-//    // ================= OUTPUT: v? SHM =================
-//    .tx_tdata(rx_backend_data),
-//    .tx_tkeep(rx_backend_keep),
-//    .tx_tvalid(rx_backend_valid),
-//    .tx_tlast(rx_backend_last),
-//    .tx_tready(rx_backend_ready)
-    
-//    );
 
 master_server #(
     .NUM_SERVERS(NUM_SERVERS)
@@ -298,6 +278,7 @@ master_server #(
     u_server(
     .clk(clk_core),
     .rst_n(rst_n),
+    .server_en(server_en),  // Server alive/enable signal from toggle switches
 
     // ================= INPUT: t? SHM =================
     .rx_user_data(tx_backend_data),

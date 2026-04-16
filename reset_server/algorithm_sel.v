@@ -106,17 +106,20 @@ module algorithm_selector #(
         end
     endgenerate
 
+    wire rr_scn_opcode;
     round_robin_algo #(
-        .IP_WIDTH  (IP_WIDTH),
-        .N_SERVERS (NUM_SERVERS)
+        .IP_WIDTH(IP_WIDTH), // note: use ipv4, v6 will be error
+        .N_SERVERS(NUM_SERVERS)
     ) rr_inst (
         .clk        (clock),
         .rst_n      (rst_n),
         .key_valid  (rr_key_valid),
-        .cfg_ip_list(server_ip_cache),
+        .i_status(health_bitmap),
+        .cfg_ip_list(server_ip_cache), // 512 bit kh?p v?i 128*4
         .rr_ip      (rr_ip),
         .rr_valid   (rr_valid),
-        .rr_id      (rr_id)
+        .rr_scn_idx    (rr_id),    // N?i tín hi?u m?i
+        .rr_scn_opcode (rr_scn_opcode)  // N?i tín hi?u m?i
     );
 
     hash_algo #(
@@ -136,6 +139,24 @@ module algorithm_selector #(
         .server_id    (hash_id),
         .out_valid    (hash_valid)
     );
+    
+//    JUMP_HASH #(
+//        .NUM_SERVERS(NUM_SERVERS)
+//    ) hash_inst (
+//        .clk          (clock),
+//        .rst_n        (rst_n),
+//        .src_ip       (key_src_ip),
+//        .dst_ip       (key_dst_ip),
+//        .src_port     (key_src_port),
+//        .dst_port     (key_dst_port),
+//        .protocol     (key_protocol),
+//        .key_valid    (hash_key_valid),
+//        .server_ips_in(server_ip_cache),
+//        .i_status     (4'b1011),
+//        .out_server_ip(hash_ip),
+//        .server_id    (hash_id),
+//        .out_valid    (hash_valid)
+//    );
 
     assign scn_idx_mux = sel_rr ? rr_id :
                          sel_hash ? hash_id :
@@ -204,67 +225,103 @@ endmodule
 
 module round_robin_algo #(
     parameter IP_WIDTH  = 32,
-    parameter N_SERVERS = 16
+    parameter N_SERVERS = 4
 )(
     input  wire                                   clk,
     input  wire                                   rst_n,
     input  wire                                   key_valid,
-    input  wire [IP_WIDTH*N_SERVERS-1:0]          cfg_ip_list,
+    input  wire [N_SERVERS-1:0]                    i_status,
+    input  wire [IP_WIDTH*N_SERVERS-1:0]           cfg_ip_list,
 
-    output wire [IP_WIDTH-1:0]                    rr_ip,
-    output wire                                   rr_valid,
-    output wire [$clog2(N_SERVERS)-1:0]           rr_id
+    output wire [IP_WIDTH-1:0]                     rr_ip,
+    output wire                                    rr_valid,
+
+    output wire [$clog2(N_SERVERS)-1:0]            rr_scn_idx,
+    output wire                                    rr_scn_opcode
 );
+
+    // ======================================================
+    // Internal regs
+    // ======================================================
 
     reg [$clog2(N_SERVERS)-1:0] ptr;
 
-    (* mark_debug = "true", keep = "true" *)
-    reg [31:0] rr_pkt_count [0:N_SERVERS-1];
-    
-    (* mark_debug = "true", keep = "true", dont_touch = "true" *)
-    wire [N_SERVERS*32-1:0] rr_pkt_count_flat;
-    
+    reg [IP_WIDTH-1:0] rr_ip_r;
+    reg rr_valid_r;
+    reg [$clog2(N_SERVERS)-1:0] rr_idx_r;
+    reg rr_opcode_r;
+
+    assign rr_ip         = rr_ip_r;
+    assign rr_valid      = rr_valid_r;
+    assign rr_scn_idx    = rr_idx_r;
+    assign rr_scn_opcode = rr_opcode_r;
+
+    // Debug counters
+    (* mark_debug = "true" *) reg [31:0] rr_pkt_count [0:N_SERVERS-1];
+
     integer i;
-    genvar g;
-    
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            for (i = 0; i < N_SERVERS; i = i + 1)
-                rr_pkt_count[i] <= 32'd0;
-        end else begin
-            if (key_valid) begin
-                rr_pkt_count[ptr] <= rr_pkt_count[ptr] + 1;
+
+    // ======================================================
+    // Find next alive server (scalable)
+    // ======================================================
+
+    reg [$clog2(N_SERVERS)-1:0] next_ptr;
+    reg found;
+
+    integer k;
+    reg [$clog2(N_SERVERS)-1:0] idx;
+
+    always @(*) begin
+        found = 0;
+        next_ptr = ptr;
+
+        for (k = 0; k < N_SERVERS; k = k + 1) begin
+            idx = ptr + k;
+
+            // wrap manually (avoid %)
+            if (idx >= N_SERVERS)
+                idx = idx - N_SERVERS;
+
+            if (!found && i_status[idx]) begin
+                next_ptr = idx;
+                found = 1;
             end
         end
     end
-    
-    generate
-        for (g = 0; g < N_SERVERS; g = g + 1) begin : GEN_RR_PKT_COUNT_FLAT
-            assign rr_pkt_count_flat[g*32 +: 32] = rr_pkt_count[g];
-        end
-    endgenerate
 
-    // =====================================================
-    // OUTPUT LOGIC
-    // =====================================================
-    assign rr_ip  = cfg_ip_list[ptr * IP_WIDTH +: IP_WIDTH];
-    assign rr_valid = key_valid;
-    assign rr_id = ptr;
+    // ======================================================
+    // Sequential logic
+    // ======================================================
 
-    // =====================================================
-    // POINTER UPDATE
-    // =====================================================
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             ptr <= 0;
-        end else begin
-            if (key_valid) begin
-                if (ptr == N_SERVERS - 1)
+
+            rr_valid_r  <= 0;
+            rr_ip_r     <= 0;
+            rr_idx_r    <= 0;
+            rr_opcode_r <= 0;
+
+            for (i = 0; i < N_SERVERS; i = i + 1)
+                rr_pkt_count[i] <= 0;
+        end 
+        else begin
+            rr_valid_r  <= key_valid & found;
+            rr_opcode_r <= key_valid & found;
+
+            if (key_valid && found) begin
+                rr_ip_r  <= cfg_ip_list[next_ptr*IP_WIDTH +: IP_WIDTH];
+                rr_idx_r <= next_ptr;
+
+                rr_pkt_count[next_ptr] <= rr_pkt_count[next_ptr] + 1;
+
+                // Move pointer to next position
+                if (next_ptr == N_SERVERS-1)
                     ptr <= 0;
                 else
-                    ptr <= ptr + 1;
+                    ptr <= next_ptr + 1;
             end
         end
     end
 
-endmodule 
+endmodule

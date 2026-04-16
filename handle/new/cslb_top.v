@@ -34,7 +34,8 @@ module load_balancer_top #(
     input  wire [1:0]            cfg_algo_sel,
     output                       scn_inc_en,
     output wire [$clog2(NUM_SERVERS)-1:0]            scn_server_idx,
-    input  wire [NUM_SERVERS-1:0]health_bitmap,
+    input  wire [NUM_SERVERS-1:0] health_bitmap,
+    input  wire                   health_bitmap_update_valid,  // Valid signal for health_bitmap update
     input  wire                   scn_dec_en,
     input  wire [$clog2(NUM_SERVERS)-1:0]            scn_dec_idx,
     
@@ -47,8 +48,8 @@ module load_balancer_top #(
     //============================================================
     // 1. Reset Logic Fix
     //============================================================
-    // Các module con (FIFO) dùng Reset m?c 1 (Active High)
-    // Module Top dùng Reset m?c 0 (Active Low) -> C?n ??o bit
+    // Cï¿½c module con (FIFO) dï¿½ng Reset m?c 1 (Active High)
+    // Module Top dï¿½ng Reset m?c 0 (Active Low) -> C?n ??o bit
 
     //============================================================
     // Wires
@@ -71,7 +72,7 @@ module load_balancer_top #(
     // Dst FIFO -> Sync (KEY PATH)
     wire [IP_WIDTH-1:0]  sync_key_data;
     wire                 sync_key_empty;
-    wire                 sync_key_valid; // FIX: Thêm dây này
+    wire                 sync_key_valid; // FIX: Thï¿½m dï¿½y nï¿½y
     wire                 rd_sync_key;
 
     // Msg FIFO -> Sync (MSG PATH)
@@ -79,7 +80,7 @@ module load_balancer_top #(
     wire                   msg_last;
     wire [MSG_WIDTH/8-1:0] msg_keep;
     wire                   msg_empty;
-    wire                   msg_fifo_valid; // FIX: Thêm dây này
+    wire                   msg_fifo_valid; // FIX: Thï¿½m dï¿½y nï¿½y
     wire                   rd_msg_en;
 
     //============================================================
@@ -122,7 +123,7 @@ module load_balancer_top #(
         .SCN_WIDTH(SCN_WIDTH)
     ) u_algo_sel (
         .clock        (clk),
-        .rst_n        (rst_n), // Module này dùng rst_n
+        .rst_n        (rst_n), // Module nï¿½y dï¿½ng rst_n
 
 //        .key_data     (key_fifo_data),
         .key_src_ip   (key_src_ip),
@@ -140,6 +141,7 @@ module load_balancer_top #(
         .cfg_algo_sel (cfg_algo_sel),
         
         .health_bitmap(health_bitmap),
+        .health_bitmap_update_valid(health_bitmap_update_valid),  // Pass update_valid signal
         .scn_inc_en   (scn_inc_en),
         .scn_server_idx   (scn_server_idx),
         .scn_dec_en(scn_dec_en),
@@ -166,7 +168,7 @@ module load_balancer_top #(
         .o_full    (dst_fifo_full),
 
         .rd_data   (sync_key_data),
-        .rd_valid  (sync_key_valid),    // FIX: N?i dây valid vào ?ây
+        .rd_valid  (sync_key_valid),    // FIX: N?i dï¿½y valid vï¿½o ?ï¿½y
         .o_empty   (sync_key_empty),
         .rd_key_en (rd_sync_key)
     );
@@ -185,7 +187,7 @@ module load_balancer_top #(
         .s_axis_tready (s_axis_tready),
 
         .msg_data      (msg_data),
-        .msg_valid     (msg_fifo_valid), // FIX: N?i dây valid vào ?ây
+        .msg_valid     (msg_fifo_valid), // FIX: N?i dï¿½y valid vï¿½o ?ï¿½y
         .msg_last      (msg_last),
         .msg_keep      (msg_keep),
         .o_empty       (msg_empty),
@@ -193,7 +195,7 @@ module load_balancer_top #(
     );
 
     //============================================================
-    // 6. SYNC LOGIC (Ghép MSG + DST IP)
+    // 6. SYNC LOGIC (Ghï¿½p MSG + DST IP)
     //============================================================
     sync_logic #(
         .MSG_WIDTH (MSG_WIDTH),
@@ -205,13 +207,13 @@ module load_balancer_top #(
         // Key Path Connection
         .key_data      (sync_key_data),
         .key_empty     (sync_key_empty),
-        .key_valid     (sync_key_valid), // FIX: ?ã có tín hi?u t? dst_fifo
+        .key_valid     (sync_key_valid), // FIX: ?ï¿½ cï¿½ tï¿½n hi?u t? dst_fifo
         .rd_key_en     (rd_sync_key),
 
         // Msg Path Connection
         .msg_data      (msg_data),
         .msg_last      (msg_last),
-        .msg_valid     (msg_fifo_valid), // FIX: ?ã có tín hi?u t? msg_fifo
+        .msg_valid     (msg_fifo_valid), // FIX: ?ï¿½ cï¿½ tï¿½n hi?u t? msg_fifo
         .msg_keep      (msg_keep),
         .msg_empty     (msg_empty),
         .rd_msg_en     (rd_msg_en),

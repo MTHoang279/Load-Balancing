@@ -24,6 +24,7 @@ module algorithm_selector #(
     
     input  wire [1:0]                   cfg_algo_sel,
     input  wire [NUM_SERVERS-1:0]       health_bitmap,
+    input  wire                         health_bitmap_update_valid,  // Valid signal for health_bitmap update
     
     output reg                          scn_inc_en,
     output reg  [$clog2(NUM_SERVERS)-1:0]                   scn_server_idx,
@@ -42,17 +43,24 @@ module algorithm_selector #(
 
     reg [NUM_SERVERS*IP_WIDTH-1:0]  server_ip_cache;
     reg [NUM_SERVERS*SCN_WIDTH-1:0] server_scn_cache;
+    reg [NUM_SERVERS-1:0]           health_bitmap_cached;  // Latched health_bitmap when update_valid
     reg init_done;
     reg [1:0] cfg_algo_sel_d;
 
     always @(posedge clock or negedge rst_n) begin
         if (!rst_n) begin
-            cslb_rd_en       <= 1'b1;
-            init_done        <= 1'b0;
-            cfg_algo_sel_d   <= 3'b000;
-            server_ip_cache  <= {NUM_SERVERS*IP_WIDTH{1'b0}};
-            server_scn_cache <= {NUM_SERVERS*SCN_WIDTH{1'b0}};
+            cslb_rd_en          <= 1'b1;
+            init_done           <= 1'b0;
+            cfg_algo_sel_d      <= 3'b000;
+            server_ip_cache     <= {NUM_SERVERS*IP_WIDTH{1'b0}};
+            server_scn_cache    <= {NUM_SERVERS*SCN_WIDTH{1'b0}};
+            health_bitmap_cached <= {NUM_SERVERS{1'b1}};
         end else begin
+            // Latch health_bitmap when update_valid is asserted
+            if (health_bitmap_update_valid) begin
+                health_bitmap_cached <= health_bitmap;
+            end
+            
             // When switching algorithm mode, request a fresh SHM snapshot so
             // TLCM sees up-to-date SCN history accumulated by previous modes.
             if (cfg_algo_sel != cfg_algo_sel_d) begin
@@ -78,8 +86,9 @@ module algorithm_selector #(
 
     // Fail-safe: avoid stalling TLCM when SHM health bitmap is temporarily all-zero.
     // Without this, tlcm_core suppresses dst_valid and upstream/downstream can lose throughput.
-    wire [NUM_SERVERS-1:0] tlcm_valid_mask = (health_bitmap == {NUM_SERVERS{1'b0}}) ?
-                                             {NUM_SERVERS{1'b1}} : health_bitmap;
+    // Use cached/latched health_bitmap instead of raw input
+    wire [NUM_SERVERS-1:0] tlcm_valid_mask = (health_bitmap_cached == {NUM_SERVERS{1'b0}}) ?
+                                             {NUM_SERVERS{1'b1}} : health_bitmap_cached;
 
     wire algo_key_valid = key_valid && init_done && !i_ip_full;
     wire rr_key_valid   = algo_key_valid && sel_rr;
@@ -131,7 +140,7 @@ module algorithm_selector #(
         .protocol     (key_protocol),
         .key_valid    (hash_key_valid),
         .server_ips_in(server_ip_cache),
-        .i_status     (health_bitmap),
+        .i_status     (health_bitmap_cached),  // Use cached health_bitmap
         .out_server_ip(hash_ip),
         .server_id    (hash_id),
         .out_valid    (hash_valid)
