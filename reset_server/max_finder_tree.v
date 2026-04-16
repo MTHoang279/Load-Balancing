@@ -147,9 +147,19 @@ module max_finder_tree #(
     output                found_any
 );
 
-    wire [N-1:0] is_max;
-    wire [SCORE_W-1:0] target = (N-1); // Ng??ng ?i?m t?i ?a
+    // ??m s? server s?ng
+    reg [$clog2(N):0] alive_count;
+    integer k;
+    always @(*) begin
+        alive_count = 0;
+        for (k = 0; k < N; k = k + 1)
+            alive_count = alive_count + valid_in[k];
+    end
 
+    // Target = s? server s?ng - 1 (th?ng t?t c? server s?ng còn l?i)
+    wire [SCORE_W-1:0] target = (alive_count > 0) ? alive_count - 1 : 0;
+
+    wire [N-1:0] is_max;
     genvar i;
     generate
         for (i = 0; i < N; i = i + 1) begin : COMP_BLOCK

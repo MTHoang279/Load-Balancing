@@ -45,7 +45,7 @@ module tlcm_stage1 #(
 )(
     input  [N*DATA_W-1:0] scn,
     input  [N-1:0]        server_valid,
-    input  [IDX_W-1:0]    tie_bias,
+//    input  [IDX_W-1:0]    tie_bias,
 
     output [N*N-1:0]      score_part,
     output [N-1:0]        server_valid_out
@@ -65,7 +65,7 @@ generate
                 .B     (scn[j*DATA_W +: DATA_W]),
                 .i     (i[IDX_W-1:0]),
                 .j     (j[IDX_W-1:0]),
-                .tie_bias(tie_bias),
+//                .tie_bias(tie_bias),
                 .ena   (server_valid),
                 .score (score_part[i*N + j])
             );
