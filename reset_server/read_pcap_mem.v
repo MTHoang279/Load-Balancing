@@ -1,18 +1,19 @@
 `timescale 1ns / 1ps
 
 module net2axis_master #(
-    // �?ư�?ng dẫn file .mem (đã convert bằng Python)
-    parameter INPUTFILE   = "F:/App/UDP_sample_10K.mem",
-    parameter ROM_DEPTH   = 1670,     
-//    parameter ROM_DEPTH   = 65536,             
+    // ?????ng d?n file .mem (?� convert b?ng Python)
+    parameter INPUTFILE   = "C:/Users/DucKhiem/Downloads/test_case/t1.mem",
+    parameter ROM_DEPTH   = 65536,
+    //ok      
+    //parameter ROM_DEPTH   = 65536,             
     parameter TDATA_WIDTH = 512
 )(
     input  wire                   ACLK,
     input  wire                   ARESETN,
     input  wire                   START,
 
-    output reg                    done_packet, // Báo xong 1 gói (khi gặp TLAST)
-    output reg                    DONE,        // Báo xong toàn bộ file
+    output reg                    done_packet, // B�o xong 1 g�i (khi g?p TLAST)
+    output reg                    DONE,        // B�o xong to�n b? file
 
     output reg                    M_AXIS_TVALID,
     output wire [TDATA_WIDTH-1:0] M_AXIS_TDATA,
@@ -23,53 +24,53 @@ module net2axis_master #(
     (* mark_debug = "true" *) reg [31:0] packet_sent_count;
     
     // --------------------------------------------------------
-    // �?ịnh nghĩa độ rộng ROM cho file .mem 577 bit
+    // ???nh ngh?a ?? r?ng ROM cho file .mem 577 bit
     // --------------------------------------------------------
     localparam ROM_WIDTH = 1 + (TDATA_WIDTH/8) + TDATA_WIDTH; // 577 bit
 
-    // Khai báo bộ nhớ sẽ infer thành BRAM
+    // Khai b�o b? nh? s? infer th�nh BRAM
     (* rom_style = "block" *) reg [ROM_WIDTH-1:0] rom_memory [0:ROM_DEPTH-1];
 
-    // Nạp dữ liệu
+    // N?p d? li?u
     initial begin
         $readmemh(INPUTFILE, rom_memory);
     end
 
-    // Các thanh ghi đi�?u khiển
+    // C�c thanh ghi ?i??u khi?n
     reg [$clog2(ROM_DEPTH)-1:0] read_ptr;
     reg                         active;
 
     // --------------------------------------------------------
-    // �?ỌC BRAM �?ỒNG BỘ (BẮT BUỘC �?Ể INFER BRAM)
+    // ???C BRAM ???NG B? (B?T BU?C ??? INFER BRAM)
     // --------------------------------------------------------
     reg [ROM_WIDTH-1:0] raw_data;
     
-    // Không dùng Reset cho thanh ghi chứa dữ liệu BRAM để tiết kiệm tài nguyên
+    // Kh�ng d�ng Reset cho thanh ghi ch?a d? li?u BRAM ?? ti?t ki?m t�i nguy�n
     always @(posedge ACLK) begin
         if (active) begin
             raw_data <= rom_memory[read_ptr];
         end else if (START && !active) begin
-            // �?�?c nháp (Pre-fetch) data tại địa chỉ 0 ngay khi có START
-            // để bù lại 1 chu kỳ trễ của BRAM
+            // ????c nh�p (Pre-fetch) data t?i ??a ch? 0 ngay khi c� START
+            // ?? b� l?i 1 chu k? tr? c?a BRAM
             raw_data <= rom_memory[0]; 
         end
     end
 
     // --------------------------------------------------------
-    // Mapping dữ liệu
+    // Mapping d? li?u
     // --------------------------------------------------------
     assign M_AXIS_TLAST = raw_data[576];
     assign M_AXIS_TKEEP = raw_data[575:512];
     assign M_AXIS_TDATA = raw_data[511:0];
 
     // --------------------------------------------------------
-    // FSM (�?Ã SỬA THÀNH RESET �?ỒNG BỘ)
+    // FSM (??� S?A TH�NH RESET ???NG B?)
     // --------------------------------------------------------
     wire handshake = M_AXIS_TVALID && M_AXIS_TREADY;
 
-    // CHÚ �?: �?ã b�? "negedge ARESETN" kh�?i sensitivity list
+    // CH� ??: ??� b?? "negedge ARESETN" kh??i sensitivity list
     always @(posedge ACLK) begin
-        // Reset �?ồng Bộ (Chỉ kiểm tra ARESETN khi có cạnh lên của ACLK)
+        // Reset ???ng B? (Ch? ki?m tra ARESETN khi c� c?nh l�n c?a ACLK)
         if (!ARESETN) begin
             read_ptr          <= 0;
             active            <= 0;
@@ -78,38 +79,38 @@ module net2axis_master #(
             DONE              <= 0;
             packet_sent_count <= 0;
         end else begin
-            // Xóa c�? done_packet sau 1 chu kỳ
+            // X�a c?? done_packet sau 1 chu k?
             done_packet <= 0;
 
-            // Bắt đầu khi có xung START và chưa chạy xong
+            // B?t ??u khi c� xung START v� ch?a ch?y xong
             if (START && !active && !DONE) begin
                 active        <= 1'b1;
                 M_AXIS_TVALID <= 1'b1;
-                read_ptr      <= 1; // Tr�? sẵn đến địa chỉ tiếp theo vì đã pre-fetch addr 0
+                read_ptr      <= 1; // Tr?? s?n ??n ??a ch? ti?p theo v� ?� pre-fetch addr 0
             end
 
-            // Khi đang hoạt động (Data đang được stream)
+            // Khi ?ang ho?t ??ng (Data ?ang ???c stream)
             if (active) begin
                 if (handshake) begin
-                    // Bắt sự kiện hết 1 gói tin
+                    // B?t s? ki?n h?t 1 g�i tin
                     if (M_AXIS_TLAST) begin
                         done_packet <= 1'b1;
                         packet_sent_count <= packet_sent_count + 1;
                     end
 
-                    // Kiểm tra đi�?u kiện kết thúc
+                    // Ki?m tra ?i??u ki?n k?t th�c
                     if (read_ptr == ROM_DEPTH -1) begin
                         active        <= 1'b0;
                         M_AXIS_TVALID <= 1'b0;
                         DONE          <= 1'b1;
                     end else begin
-                        // Tăng địa chỉ
+                        // T?ng ??a ch?
                         read_ptr <= read_ptr + 1;
                     end
                 end
             end
             
-            // Cơ chế Reset lại trạng thái để chạy lần 2 nếu START rớt xuống 0 rồi lên 1 lại
+            // C? ch? Reset l?i tr?ng th�i ?? ch?y l?n 2 n?u START r?t xu?ng 0 r?i l�n 1 l?i
             if (DONE && !START) begin
                 DONE     <= 0;
                 read_ptr <= 0;

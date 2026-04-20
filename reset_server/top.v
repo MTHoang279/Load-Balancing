@@ -11,9 +11,8 @@ module fpga_top#(
     input  wire        rst_in,     // N?t nh?n GPIO_SW_N (Active High)
     (* mark_debug = "true" *) input  wire        start,      // Asynchronous Input
     (* mark_debug = "true" *) input  wire [1:0]  algo_sel,
-    (* mark_debug = "true" *) input  wire [5:0]  server_en,
-//    input  wire        loop_en,
-    output wire        done       // flag done read pcap
+    (* mark_debug = "true" *) input  wire [5:0]  server_en
+//    output wire        done       // flag done read pcap
 );
     (* mark_debug = "true" *) wire [NUM_SERVERS*15-1:0] cnt_user_req_rx;
     (* mark_debug = "true" *) wire [NUM_SERVERS*15-1:0] cnt_hb_req_rx;
@@ -136,48 +135,47 @@ module fpga_top#(
     wire         m_axis_tlast;
     wire [63:0]  m_axis_tkeep;
     
-    net2axis_master #(
-        .TDATA_WIDTH(BUS_WIDTH),
-        .INPUTFILE(INPUTFILE)
-    ) u_packet_gen (
-        .ACLK        (clk_core),
-        .ARESETN      (rst_n),
-        .START      (start),
-        .DONE       (done),
-        // done_packet
+//    net2axis_master #(
+//        .TDATA_WIDTH(BUS_WIDTH),
+//        .INPUTFILE(INPUTFILE)
+//    ) u_packet_gen (
+//        .ACLK        (clk_core),
+//        .ARESETN      (rst_n),
+//        .START      (start),
+//        .DONE       (done),
+////        .done_packet(),
     
-        // AXI-Stream master interface
-        .M_AXIS_TDATA      (gen_tdata),
-        .M_AXIS_TVALID     (gen_tvalid),
-        .M_AXIS_TLAST      (gen_tlast),
-        .M_AXIS_TKEEP      (gen_tkeep),
-        .M_AXIS_TREADY     (gen_tready)
-    );
-    
-//    packet_gen #(
-//        .BUS_WIDTH(BUS_WIDTH)
-//    ) my_packet_gen(
-//        .clk    (clk_core),
-//        .rst_n  (rst_n),
-//        .start  (start),
-//        .loop_en(loop_en),
-//        .gap_cycles(16'd10),
-        
-//        .eth_type(16'h0800),
-//        .base_src_ip(32'haaaaa111),
-//        .base_dst_ip(32'hbbbbb111),
-//        .base_src_port(16'h0880),
-//        .base_dst_port(16'h8080),
-//        .payload_len(16'd120),
-//        .payload_byte(8'h44),
-        
 //        // AXI-Stream master interface
-//        .tdata      (gen_tdata),
-//        .tvalid     (gen_tvalid),
-//        .tlast      (gen_tlast),
-//        .tkeep      (gen_tkeep),
-//        .tready     (gen_tready)
+//        .M_AXIS_TDATA      (gen_tdata),
+//        .M_AXIS_TVALID     (gen_tvalid),
+//        .M_AXIS_TLAST      (gen_tlast),
+//        .M_AXIS_TKEEP      (gen_tkeep),
+//        .M_AXIS_TREADY     (gen_tready)
 //    );
+    
+    packet_gen #(
+        .BUS_WIDTH(BUS_WIDTH)
+    ) my_packet_gen(
+        .clk    (clk_core),
+        .rst_n  (rst_n),
+        .start  (start),
+        .gap_cycles(16'd10),
+        
+        .eth_type(16'h0800),
+        .base_src_ip(32'h0a000121),
+        .base_dst_ip(32'h0b234111),
+        .base_src_port(16'h0880),
+        .base_dst_port(16'h8080),
+        .payload_len(16'd120),
+        .payload_byte(8'h44),
+        
+        // AXI-Stream master interface
+        .tdata      (gen_tdata),
+        .tvalid     (gen_tvalid),
+        .tlast      (gen_tlast),
+        .tkeep      (gen_tkeep),
+        .tready     (gen_tready)
+    );
     
     packet_filter #(
         .BUS_WIDTH(BUS_WIDTH)

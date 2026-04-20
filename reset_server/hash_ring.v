@@ -64,7 +64,7 @@ module hash_ring #(
 
             /* combine sid and vid */
             seed = {sid[15:0], vid[15:0]};
-
+            seed = seed ^ (seed << 13);
             vnode_hash = crc32(seed);
 
         end

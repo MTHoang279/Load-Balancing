@@ -12,7 +12,6 @@ module net2axis_master #(
     input  wire                         ARESETN,
     input  wire                         START,
 
-    output reg                          done_packet,
     output wire                         DONE,
 
     output reg                          M_AXIS_TVALID,
@@ -57,7 +56,6 @@ module net2axis_master #(
             M_AXIS_TVALID <= 1'b0;
             M_AXIS_TLAST  <= 1'b0;
             delay_counter <= 0;
-            done_packet   <= 1'b0;
             eof           <= 1'b0;
         end else begin
             case (state)
@@ -80,7 +78,6 @@ module net2axis_master #(
                         md_flag_file, pkt_id, delay_val);
 
                     if (ld == 3 && md_flag_file == `MD_MARKER) begin
-                        done_packet <= 1'b0;
                         delay_counter <= delay_val;
                         state <= (delay_val == 0) ? LOAD_BEAT : DELAY;
                     end
@@ -119,7 +116,6 @@ module net2axis_master #(
                     if (M_AXIS_TLAST) begin
                         M_AXIS_TVALID <= 1'b0;
                         M_AXIS_TLAST  <= 1'b0;
-                        done_packet   <= 1'b1;
                         state <= READ_HEADER;
                     end else begin
                         M_AXIS_TVALID <= 1'b0;
