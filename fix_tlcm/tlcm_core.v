@@ -619,14 +619,12 @@ module tlcm_core #(
             dst_ip            <= 32'b0;
             dst_valid         <= 1'b0;
             best_index_out    <= {IDX_W{1'b0}};
-            tie_bias          <= {IDX_W{1'b1}};
+//            tie_bias          <= {IDX_W{1'b1}};
+            tie_bias          <= N;
         end else begin
-            // Rotate tie priority on accepted output events for deterministic phase alignment.
-//            if (scn_inc_en)
-////                tie_bias <= tie_bias + {{(IDX_W-1){1'b0}}, 1'b1};
-//                tie_bias <= (tie_bias == {IDX_W{1'b0}}) ? {IDX_W{1'b1}} : (tie_bias - {{(IDX_W-1){1'b0}}, 1'b1});
+            // Rotate tie priority on accepted output events for deterministic phase alignment.             
             if (dst_valid_next)
-                tie_bias <= tie_bias + {{(IDX_W-1){1'b0}},1'b1};
+                tie_bias <= tie_bias - {{(IDX_W-1){1'b0}}, 1'b1};
             // Stage 1 -> Stage 2
             if (data_valid) begin
                 score_part_r      <= score_part_w;

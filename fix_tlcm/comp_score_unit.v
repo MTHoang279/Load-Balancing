@@ -51,8 +51,10 @@ module comp_score_unit #(
     input  [N-1:0]      ena,   // valid[j]
     output reg          score
 );
-wire [IDX_W-1:0] i_rel = i - tie_bias;
-wire [IDX_W-1:0] j_rel = j - tie_bias;
+//wire [IDX_W-1:0] i_rel = i - tie_bias;
+//wire [IDX_W-1:0] j_rel = j - tie_bias;
+wire [IDX_W:0] i_dist = (tie_bias >= i) ? (tie_bias - i) : (tie_bias + N - i);
+wire [IDX_W:0] j_dist = (tie_bias >= j) ? (tie_bias - j) : (tie_bias + N - j);
 
 always @(*) begin
     if (!(ena[i] && ena[j])) begin
@@ -66,7 +68,8 @@ always @(*) begin
     end
     else begin
 //        if (i > j)
-        if (i_rel > j_rel)
+//        if (i_rel > j_rel)
+        if (i_dist > j_dist)
             score = 1'b1;
         else
             score = 1'b0;
